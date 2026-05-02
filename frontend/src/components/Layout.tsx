@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
-import { FileText, LogOut, UploadCloud, History, Settings } from 'lucide-react';
+import { FileText, LogOut, UploadCloud, History, FileSpreadsheet } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function Layout({ children, title }: { children: ReactNode, title: string }) {
@@ -18,6 +18,7 @@ export default function Layout({ children, title }: { children: ReactNode, title
 
   const navItems = [
     { name: 'New Scan', path: '/dashboard', icon: UploadCloud },
+    { name: 'Table to Excel', path: '/table-extract', icon: FileSpreadsheet },
     { name: 'History', path: '/history', icon: History },
   ];
 

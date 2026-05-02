@@ -1,7 +1,7 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { useState, useEffect } from 'react';
-import { Download, ArrowLeft, Copy, Check, FileText, FileJson, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Download, ArrowLeft, Copy, Check, FileText, FileJson, Loader2, FileSpreadsheet } from 'lucide-react';
 import { api } from '../lib/axios';
 
 interface ScanData {
@@ -16,8 +16,10 @@ export default function ResultPage() {
   const { state } = useLocation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const exportFileInputRef = useRef<HTMLInputElement>(null);
+  const locationState = state as { scanData?: ScanData; originalFile?: File; tableText?: string } | null;
   
-  const [scanData, setScanData] = useState<ScanData | null>(state?.scanData || null);
+  const [scanData, setScanData] = useState<ScanData | null>(locationState?.scanData || null);
   const [loading, setLoading] = useState<boolean>(!state?.scanData);
   const [error, setError] = useState<string>('');
   const [text, setText] = useState<string>('');
@@ -25,10 +27,13 @@ export default function ResultPage() {
   const [isEdited, setIsEdited] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState<string | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(locationState?.originalFile || null);
+  const [pendingTableAction, setPendingTableAction] = useState<'xlsx' | 'text' | null>(null);
 
   useEffect(() => {
     if (scanData) {
-      setText(scanData.extracted_text);
+      const nextText = locationState?.tableText || scanData.extracted_text;
+      setText(nextText);
       setLoading(false);
     }
   }, [scanData]);
@@ -107,6 +112,97 @@ export default function ResultPage() {
     }
   };
 
+  const exportTableToXlsx = async (file: File) => {
+    setIsExporting('xlsx');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post(
+        '/ocr/export-table',
+        formData,
+        { responseType: 'blob' }
+      );
+
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+
+      const baseFilename = file.name.split('.')[0];
+      link.download = `${baseFilename}_tables.xlsx`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting table to XLSX:', error);
+      alert('Failed to export table to XLSX');
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  const extractTableText = async (file: File) => {
+    setIsExporting('table-text');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/ocr/extract-table-text', formData);
+      setText(response.data?.table_text || '');
+      setIsEdited(true);
+    } catch (error) {
+      console.error('Error extracting table text:', error);
+      alert('Failed to extract table text');
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  const handleExportTable = async () => {
+    if (originalFile) {
+      await exportTableToXlsx(originalFile);
+      return;
+    }
+
+    setPendingTableAction('xlsx');
+    exportFileInputRef.current?.click();
+  };
+
+  const handleExtractTableText = async () => {
+    if (originalFile) {
+      await extractTableText(originalFile);
+      return;
+    }
+
+    setPendingTableAction('text');
+    exportFileInputRef.current?.click();
+  };
+
+  const handleTableFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    e.target.value = '';
+
+    if (!file) {
+      setPendingTableAction(null);
+      return;
+    }
+
+    setOriginalFile(file);
+
+    if (pendingTableAction === 'xlsx') {
+      setPendingTableAction(null);
+      await exportTableToXlsx(file);
+      return;
+    }
+
+    if (pendingTableAction === 'text') {
+      setPendingTableAction(null);
+      await extractTableText(file);
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -176,12 +272,38 @@ export default function ResultPage() {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-2">
+              <input
+                ref={exportFileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={handleTableFileSelect}
+              />
+
               <button 
                 onClick={handleCopy}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-outline-variant/50 hover:bg-surface-container transition-colors"
               >
                 {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                 {copied ? 'Copied' : 'Copy'}
+              </button>
+
+              <button 
+                onClick={handleExportTable}
+                disabled={isExporting === 'xlsx'}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-outline-variant/50 hover:bg-surface-container transition-colors disabled:opacity-50"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {isExporting === 'xlsx' ? 'Exporting...' : 'XLSX (Table)'}
+              </button>
+
+              <button 
+                onClick={handleExtractTableText}
+                disabled={isExporting === 'table-text'}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-outline-variant/50 hover:bg-surface-container transition-colors disabled:opacity-50"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {isExporting === 'table-text' ? 'Extracting...' : 'Extract Table (TSV)'}
               </button>
 
               <button 

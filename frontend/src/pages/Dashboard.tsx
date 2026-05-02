@@ -54,13 +54,14 @@ export default function Dashboard() {
         }
       });
       // Redirect to result page
-      navigate(`/result/${response.data.id}`, { state: { scanData: response.data } });
+      navigate(`/result/${response.data.id}`, { state: { scanData: response.data, originalFile: file } });
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to process image');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <Layout title="New Scan">
@@ -103,6 +104,7 @@ export default function Dashboard() {
             </>
           )}
         </div>
+
       </div>
     </Layout>
   );

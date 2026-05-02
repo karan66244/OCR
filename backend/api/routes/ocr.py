@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from fastapi.responses import StreamingResponse
 from api.deps import get_current_user
 from services.ocr_service import perform_ocr
-from services.export_service import export_to_docx, export_to_pdf, export_to_txt
+from services.export_service import export_to_docx, export_to_pdf, export_to_txt, export_tables_to_xlsx, extract_tables_to_tsv
 from core.firebase import db
 from models.schemas import ScanResponse, TextUpdateRequest
 from datetime import datetime, timezone
@@ -153,3 +153,61 @@ async def export_scan(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.post("/export-table")
+async def export_table_from_image(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Export detected tables from an image to XLSX.
+    """
+    allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/bmp", "image/tiff"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Only image files (PNG, JPG, JPEG, BMP, TIFF) are supported"
+        )
+
+    try:
+        contents = await file.read()
+        output = export_tables_to_xlsx(contents, file.filename)
+
+        base_filename = file.filename.rsplit('.', 1)[0] if '.' in file.filename else file.filename
+        export_filename = f"{base_filename}_tables.xlsx"
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={export_filename}"}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Table export failed: {str(e)}")
+
+
+@router.post("/extract-table-text")
+async def extract_table_text(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Extract detected tables from an image and return TSV text.
+    """
+    allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/bmp", "image/tiff"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Only image files (PNG, JPG, JPEG, BMP, TIFF) are supported"
+        )
+
+    try:
+        contents = await file.read()
+        table_text = extract_tables_to_tsv(contents)
+        return {"table_text": table_text}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Table extraction failed: {str(e)}")

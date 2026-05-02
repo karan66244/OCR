@@ -9,3 +9,6 @@ pydantic-settings
 python-docx
 reportlab
 pillow
+img2table
+openpyxl
+pandas>=2.2.0,<3.0.0

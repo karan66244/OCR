@@ -6,6 +6,7 @@ import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import ResultPage from './pages/ResultPage';
 import HistoryPage from './pages/HistoryPage';
+import TableExtractPage from './pages/TableExtractPage';
 
 function App() {
   const { initialize, initialized, user } = useAuthStore();
@@ -27,6 +28,7 @@ function App() {
         <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
         <Route path="/auth" element={user ? <Navigate to="/dashboard" /> : <AuthPage />} />
         <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/auth" />} />
+        <Route path="/table-extract" element={user ? <TableExtractPage /> : <Navigate to="/auth" />} />
         <Route path="/history" element={user ? <HistoryPage /> : <Navigate to="/auth" />} />
         {/* Result page doesn't require authentication - API handles authorization */}
         <Route path="/result/:id" element={<ResultPage />} />
